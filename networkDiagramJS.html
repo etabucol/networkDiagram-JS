@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+  <meta name="description" content="" />
+  <meta name="author" content="" />
+  <title>UH-ITS NETOPS</title>
+  <link href="https://cdn.jsdelivr.net/npm/simple-datatables@latest/dist/style.css" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/js/all.min.js" crossorigin="anonymous"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script src="https://unpkg.com/gojs/release/go-debug.js"></script>
+  <link rel='stylesheet' href='https://gojs.net/latest/extensions/ZoomSlider.css' />
+  <script src="https://gojs.net/latest/extensions/ZoomSlider.js"></script>
+
+  <style>
+    /*Pop up when a link is clicked so show tagged vlans */
+    #popupTrunk {
+      position: fixed;
+      width: auto;
+      height: auto;
+      z-index: 99;
+      background: white;
+      border-radius: 5px;
+      border: 2px solid #73AD21;
+      padding: 2px;
+      font-size: 12px;
+      opacity: 0.9;
+    }
+  </style>
+
+  <script>
+    function init() {
+
+      var $ = go.GraphObject.make; // for conciseness in defining templates
+
+      //Change the color of the link base on the type of connection
+      function linkColor(conn) {
+        if (conn == 'smFiber') return "#FFFF00";
+        if (conn == 'mmFiber') return "#FF8C00";
+        if (conn == 'copper') return "#FF0000";
+        if (conn == 'radio') return "#87CEFA";
+        return "#000000";  
+      }
+
+      myDiagram =
+        $(go.Diagram, "myDiagramDiv", // must name or refer to the DIV HTML element
+          {
+            initialAutoScale: go.Diagram.Uniform, //Zoom to fit the whole diagram to viewport
+            allowDelete: false,
+            allowCopy: false,
+            allowResize: false,
+            "toolManager.mouseWheelBehavior": go.ToolManager.WheelZoom, //Mouse scroll zoom
+            layout: $(go.LayeredDigraphLayout)
+          });
+
+      // define the Node template, representing an entity (the hosts)
+      myDiagram.nodeTemplate =
+        $(go.Node, "Auto", // the whole node panel
+          {
+            selectionAdorned: true,
+            resizable: true,
+            layoutConditions: go.Part.LayoutStandard & ~go.Part.LayoutNodeSized,
+            fromSpot: go.Spot.AllSides,
+            toSpot: go.Spot.AllSides,
+            isShadowed: true,
+            shadowOffset: new go.Point(3, 3),
+            shadowColor: "#C5C1AA"
+          },
+          new go.Binding("location", "location").makeTwoWay(),
+
+          // define the node's outer shape, which will surround the Table
+          $(go.Shape, "RoundedRectangle", {
+            fill: 'white',
+            stroke: "#000000",
+            strokeWidth: 2
+          }),
+          $(go.Panel, "Table", {
+              stretch: go.GraphObject.Fill,
+              margin: 0.5
+            },
+            $(go.TextBlock, {
+                row: 0,
+                column: 0,
+                margin: 5,
+                textAlign: "center",
+                font: "bold 20px sans-serif"
+              },
+              new go.Binding("text", "name")),
+            $(go.TextBlock, {
+                row: 1,
+                column: 0,
+                margin: 2,
+                textAlign: "center",
+                font: "bold 16px sans-serif"
+              },
+              new go.Binding("text", "key")),
+            $(go.TextBlock, {
+                row: 2,
+                column: 0,
+                margin: 2,
+                textAlign: "center",
+                font: "12px sans-serif"
+              },
+              new go.Binding("text", "model"))
+          ),
+        ); // end Node
+
+      // define the Link template, representing a relationship (the lines)
+      myDiagram.linkTemplate =
+        $(go.Link, // the whole link panel
+          {
+            selectionAdorned: true,
+            layerName: "Foreground",
+            reshapable: true,
+            routing: go.Link.AvoidsNodes,
+            corner: 5,
+            curve: go.Link.JumpOver,
+            click: // here the second argument is this object, which is this Node
+              function(e, node) {
+                var div = document.getElementById('popupTaggedVlans');
+                div.innerHTML = "Tagged VLANs " + node.part.data.taggedVlans;
+                div.style.left = event.clientX - (div.clientWidth / 2) + 'px';
+                div.style.top = event.clientY - div.clientHeight + 'px';
+                div.style.display = "block";
+              }
+
+          },
+
+          $(go.Shape, {
+              strokeWidth: 3
+            },
+            new go.Binding("stroke", "connection", linkColor),
+            new go.Binding("strokeDashArray", "[3,2]"),
+            ),
+
+          // Local interface
+          $(go.TextBlock, // the "from" label
+            {
+              textAlign: "center",
+              font: "bold 11px sans-serif",
+              stroke: "#1967B3",
+              segmentIndex: 0,
+              segmentOffset: new go.Point(NaN, NaN),
+              segmentOrientation: go.Link.OrientUpright
+            },
+            new go.Binding("text", "localPort")),
+
+          // Remote interface
+          $(go.TextBlock, // the "to" label
+            {
+              textAlign: "center",
+              font: "bold 11px sans-serif",
+              stroke: "#1967B3",
+              segmentIndex: -1,
+              segmentOffset: new go.Point(NaN, NaN),
+              segmentOrientation: go.Link.OrientUpright
+            },
+            new go.Binding("text", "remotePort")),
+
+          //Label for the speed
+          $(go.Panel, "Auto",
+            $(go.Shape, // the label background, which becomes transparent around the edges
+              {
+                fill: $(go.Brush, "Radial", {
+                  0: "rgb(240, 240, 240)",
+                  0.3: "rgb(240, 240, 240)",
+                  1: "rgba(240, 240, 240, 0)"
+                }),
+                stroke: null
+              }),
+            $(go.TextBlock, // the label text
+              {
+                textAlign: "center",
+                font: "bold 11px sans-serif",
+                stroke: "#555555",
+                margin: 4
+              },
+              new go.Binding("text", "speed"))
+          )
+        ); //end link
+
+      // read in the JSON-format data from the "jsonData" element
+      load();
+
+      // define a Layout that flows from top to bottom
+      // Change direction to 0,90,180 or 270
+      myDiagram.layout =
+        $(go.LayeredDigraphLayout, {
+          direction: 270,
+          layerSpacing: 100,
+          setsPortSpots: false
+        });
+
+      //Slider to zoom in and out
+      zoomSlider = new ZoomSlider(myDiagram);
+
+      myDiagram.addDiagramListener("BackgroundSingleClicked", function(ev) {
+        var div = document.getElementById('popupTaggedVlans');
+        div.style.display = "none";
+      });
+
+      function load() {
+        myDiagram.model = go.Model.fromJson(document.getElementById("jsonData").value);
+        //myDiagram.model = go.Model.fromJson("networkDiagramJSON.php");
+      }
+
+    } //init()
+  </script>
+</head>
+
+<body class="sb-nav-fixed" onload="init()">
+
+  <!-- The DIV for a Diagram needs an explicit size or else we will not see anything.
+            In this case we also add a background color so we can see that area. -->
+  <div style="position: relative;">
+
+    <div id="myDiagramDiv" style="width:auto; height:800px; background-color: #DAE4E4;"></div>
+
+    <div id="popupTaggedVlans" style="display:none;"></div>
+
+    <textarea id="jsonData" style="display:none;">
+
+      {"class":"go.GraphLinksModel",
+        "nodeDataArray":
+        [
+          {"key":"10.10.1.1","name":"Router","model":"Arista DCS-7020SR-24C2"},
+          {"key":"10.10.10.10","name":"Zone1Switch1","model":"Cisco WS-C2960S-24PS-L"},
+          {"key":"10.10.10.11","name":"Zone1Switch2","model":"HP J9773A 2530-24G-PoEP"},
+          {"key":"10.10.10.12","name":"Zone1Switch3","model":"J9299A 2520G-24-PoE"},
+          {"key":"10.10.11.10","name":"Zone2Switch1","model":"Aruba JL677A 6100"},
+          {"key":"10.10.11.11","name":"Zone2Switch2","model":"HP J9773A 2530-24G-PoEP"}
+        ],
+        "linkDataArray":
+        [
+          {"from":"10.10.10.10","to":"10.10.1.1","localPort":"Gi1\/0\/28","remotePort":"Et1","connection":"smFiber","taggedVlans":"1,2,1000,2000","speed":"10G"},
+          {"from":"10.10.10.11","to":"10.10.10.10","localPort":"24","remotePort":"Gi1\/0\/2","connection":"copper","taggedVlans":"1,2,1000,2000","speed":"1G"},
+          {"from":"10.10.10.12","to":"10.10.10.10","localPort":"24","remotePort":"Gi1\/0\/3","connection":"copper","taggedVlans":"1,2,1000,2000","speed":"1G"},
+          {"from":"10.10.11.10","to":"10.10.1.1","localPort":"1\/1\/28","remotePort":"Et2","connection":"mmFiber","taggedVlans":"1,2,3000,4000","speed":"1G"},
+          {"from":"10.10.11.11","to":"10.10.11.10","localPortPort":"24","remotePort":"1\/1\/2","connection":"copper","taggedVlans":"1,2,3000,4000","speed":"1G"}
+        ]
+      }
+
+    </textarea>
+
+  </div>
+
+</body>
+
+</html>
