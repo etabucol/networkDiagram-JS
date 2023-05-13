@@ -1,2 +1,2 @@
 # networkDiagram-JS
-Simple network diagram builder using GoJS
+A simple network diagram builder using GoJS
