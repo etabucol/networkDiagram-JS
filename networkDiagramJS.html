@@ -7,7 +7,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
   <meta name="description" content="" />
   <meta name="author" content="" />
-  <title>UH-ITS NETOPS</title>
+  <title>Network Diagram JS</title>
   <link href="https://cdn.jsdelivr.net/npm/simple-datatables@latest/dist/style.css" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/js/all.min.js" crossorigin="anonymous"></script>
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
@@ -16,7 +16,7 @@
   <script src="https://gojs.net/latest/extensions/ZoomSlider.js"></script>
 
   <style>
-    /*Pop up when a link is clicked so show tagged vlans */
+    /*Pops up when a link is clicked to show tagged vlans */
     #popupTrunk {
       position: fixed;
       width: auto;
@@ -36,6 +36,8 @@
 
       var $ = go.GraphObject.make; // for conciseness in defining templates
 
+      var dashed = [5,5];
+
       //Change the color of the link base on the type of connection
       function linkColor(conn) {
         if (conn == 'smFiber') return "#FFFF00";
@@ -43,6 +45,12 @@
         if (conn == 'copper') return "#FF0000";
         if (conn == 'radio') return "#87CEFA";
         return "#000000";  
+      }
+
+      //Create dashed lines for Radio or over the air connections
+      function radioLink(conn) {
+        if (conn == 'radio') return [5,5]; //Dashed line
+        return [0,0]; //Solid line 
       }
 
       myDiagram =
@@ -88,7 +96,7 @@
                 textAlign: "center",
                 font: "bold 20px sans-serif"
               },
-              new go.Binding("text", "name")),
+              new go.Binding("text", "hostname")),
             $(go.TextBlock, {
                 row: 1,
                 column: 0,
@@ -133,7 +141,7 @@
               strokeWidth: 3
             },
             new go.Binding("stroke", "connection", linkColor),
-            new go.Binding("strokeDashArray", "[3,2]"),
+            new go.Binding("strokeDashArray", "connection", radioLink),
             ),
 
           // Local interface
@@ -226,20 +234,25 @@
       {"class":"go.GraphLinksModel",
         "nodeDataArray":
         [
-          {"key":"10.10.1.1","name":"Router","model":"Arista DCS-7020SR-24C2"},
-          {"key":"10.10.10.10","name":"Zone1Switch1","model":"Cisco WS-C2960S-24PS-L"},
-          {"key":"10.10.10.11","name":"Zone1Switch2","model":"HP J9773A 2530-24G-PoEP"},
-          {"key":"10.10.10.12","name":"Zone1Switch3","model":"J9299A 2520G-24-PoE"},
-          {"key":"10.10.11.10","name":"Zone2Switch1","model":"Aruba JL677A 6100"},
-          {"key":"10.10.11.11","name":"Zone2Switch2","model":"HP J9773A 2530-24G-PoEP"}
+          {"key":"10.10.1.1","hostname":"Router1","model":"Arista DCS-7020SR-24C2"},
+          {"key":"10.10.10.10","hostname":"Zone1Switch1","model":"Cisco WS-C2960S-24PS-L"},
+          {"key":"10.10.10.11","hostname":"Zone1Switch2","model":"HP J9773A 2530-24G-PoEP"},
+          {"key":"10.10.10.12","hostname":"Zone1Switch3","model":"HP J9299A 2520G-24-PoE"},
+          {"key":"10.10.11.10","hostname":"Zone2Switch1","model":"Aruba JL677A 6100"},
+          {"key":"10.10.11.100","hostname":"Radio1","model":"Ubiquiti LocoM5"},
+          {"key":"10.10.11.101","hostname":"Radio2","model":"Ubiquiti LocoM5"},
+          {"key":"10.10.11.20","hostname":"Zone3Switch1","model":"HP J9773A 2530-24G-PoEP"}
         ],
         "linkDataArray":
         [
+          {"from":"10.10.1.1","to":"10.10.1.10","localPort":"Gi1\/0\/28","remotePort":"Et1","connection":"smFiber","taggedVlans":"1,2,1000,2000","speed":"10G"},
           {"from":"10.10.10.10","to":"10.10.1.1","localPort":"Gi1\/0\/28","remotePort":"Et1","connection":"smFiber","taggedVlans":"1,2,1000,2000","speed":"10G"},
           {"from":"10.10.10.11","to":"10.10.10.10","localPort":"24","remotePort":"Gi1\/0\/2","connection":"copper","taggedVlans":"1,2,1000,2000","speed":"1G"},
           {"from":"10.10.10.12","to":"10.10.10.10","localPort":"24","remotePort":"Gi1\/0\/3","connection":"copper","taggedVlans":"1,2,1000,2000","speed":"1G"},
           {"from":"10.10.11.10","to":"10.10.1.1","localPort":"1\/1\/28","remotePort":"Et2","connection":"mmFiber","taggedVlans":"1,2,3000,4000","speed":"1G"},
-          {"from":"10.10.11.11","to":"10.10.11.10","localPortPort":"24","remotePort":"1\/1\/2","connection":"copper","taggedVlans":"1,2,3000,4000","speed":"1G"}
+          {"from":"10.10.11.100","to":"10.10.11.10","localPort":"Eth","remotePort":"1\/1\/24","connection":"copper","taggedVlans":"1,2,3000,4000","speed":"1G"},
+          {"from":"10.10.11.101","to":"10.10.11.100","localPort":"","remotePort":"","connection":"radio","taggedVlans":"1,2,3000,4000","speed":"1G"},
+          {"from":"10.10.11.20","to":"10.10.11.101","localPort":"24","remotePort":"Eth","connection":"copper","taggedVlans":"1,2,3000,4000","speed":"1G"}
         ]
       }
 
